@@ -11,11 +11,15 @@ import (
 	"go.opentelemetry.io/otel"
 	otelmetric "go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/semconv/v1.12.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.12.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
-const tracerName = "github.com/riandyrn/otelchi"
+const (
+	tracerName = "github.com/riandyrn/otelchi"
+
+	traceResponseHeaderKey = "X-Trace-ID"
+)
 
 // Middleware sets up a handler to start tracing the incoming
 // requests. The serverName parameter should describe the name of the
@@ -46,6 +50,9 @@ func Middleware(serverName string, opts ...Option) func(next http.Handler) http.
 	if cfg.Propagators == nil {
 		cfg.Propagators = otel.GetTextMapPropagator()
 	}
+	if cfg.TraceResponseHeaderKey == "" {
+		cfg.TraceResponseHeaderKey = traceResponseHeaderKey
+	}
 	return func(handler http.Handler) http.Handler {
 		return &otelware{
 			serverName:             serverName,
@@ -59,6 +66,7 @@ func Middleware(serverName string, opts ...Option) func(next http.Handler) http.
 			filter:                 cfg.Filter,
 			disableMeasureInflight: cfg.DisableMeasureInflight,
 			disableMeasureSize:     cfg.DisableMeasureSize,
+			traceResponseHeaderKey: cfg.TraceResponseHeaderKey,
 		}
 	}
 }
@@ -75,6 +83,7 @@ type otelware struct {
 	filter                 func(r *http.Request) bool
 	disableMeasureInflight bool
 	disableMeasureSize     bool
+	traceResponseHeaderKey string
 }
 
 type recordingResponseWriter struct {
@@ -175,6 +184,11 @@ func (ow *otelware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 	)
 	defer span.End()
+
+	// put trace_id to response header
+	if span.SpanContext().HasTraceID() {
+		w.Header().Add(ow.traceResponseHeaderKey, span.SpanContext().TraceID().String())
+	}
 
 	// get recording response writer
 	rrw := getRRW(w)

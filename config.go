@@ -17,9 +17,9 @@ type config struct {
 	ChiRoutes               chi.Routes
 	RequestMethodInSpanName bool
 	Filter                  func(r *http.Request) bool
-
-	DisableMeasureInflight bool
-	DisableMeasureSize     bool
+	DisableMeasureInflight  bool
+	DisableMeasureSize      bool
+	TraceResponseHeaderKey  string
 }
 
 // Option specifies instrumentation configuration options.
@@ -101,5 +101,12 @@ func WithRequestMethodInSpanName(isActive bool) Option {
 func WithFilter(filter func(r *http.Request) bool) Option {
 	return optionFunc(func(cfg *config) {
 		cfg.Filter = filter
+	})
+}
+
+// WithTraceResponseHeaderKey is used for changing response header key that contains trace id.
+func WithTraceResponseHeaderKey(name string) Option {
+	return optionFunc(func(cfg *config) {
+		cfg.TraceResponseHeaderKey = name
 	})
 }
